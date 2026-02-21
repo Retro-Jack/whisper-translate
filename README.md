@@ -2,6 +2,10 @@
 
 A terminal UI for transcribing and translating video files into SRT subtitles using [OpenAI Whisper](https://github.com/openai/whisper).
 
+## Purpose
+
+Foreign-language video content is everywhere — films, lectures, interviews — but subtitles aren't always available. This tool exists to make that barrier disappear with a single command. Drop in any video file, pick a model, and walk away; Whisper Translate handles the conversion, transcription, and translation entirely locally, with no cloud accounts, no API keys, and no internet connection required after the first setup. The result is a ready-to-use `.srt` subtitle file saved right alongside your video.
+
 ![Whisper Translate TUI](https://i.imgur.com/tJwvu5f.png)
 
 ---
