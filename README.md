@@ -14,7 +14,7 @@ Foreign-language video content is everywhere — films, lectures, interviews —
 
 - **Interactive curses TUI** — keyboard and mouse driven, no flags to remember
 - **File picker** — browse your filesystem, filtered to video files only
-- **5 model sizes** — Tiny, Small, Medium, Large, Turbo (default)
+- **5 model sizes** — Tiny, Small, Medium, Turbo (default), Large
 - **Language control** — autodetect or pick from 100+ languages
 - **ffmpeg progress bar** — real-time conversion progress with percentage
 - **Live whisper output** — scrollable log of whisper's transcription output
