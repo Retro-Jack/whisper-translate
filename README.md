@@ -69,10 +69,10 @@ Turbo is the recommended default — it offers near-large quality at roughly 8×
 
 ## How It Works
 
-1. `ffprobe` reads the video duration (for progress reporting)
-2. `ffmpeg` converts the video to a 16 kHz mono WAV
+1. `ffprobe` reads the video duration (used for the progress bar)
+2. `ffmpeg` converts the video to a 16 kHz mono WAV, stored in `/tmp/whisper_translate/`
 3. `whisper` transcribes and translates the WAV to English SRT
-4. The WAV is deleted; the SRT is saved alongside the source file
+4. The SRT is saved alongside the source video; all temp files are removed from `/tmp/whisper_translate/`
 
 ---
 
