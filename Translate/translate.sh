@@ -47,6 +47,7 @@ import sys
 import subprocess
 import threading
 import queue
+import time
 
 VENV = sys.argv[1]
 TMPWAV_DIR = sys.argv[2]  # temp dir for the WAV; bash trap removes it on exit
@@ -146,12 +147,13 @@ class FilePicker:
         input_text = ""
         input_cur = 0
         input_error = ""
-        # These are fixed for the lifetime of the window
         input_row = 1
         input_label = "Path: "
         iw = pw - 4
         # Row layout: border(0) input(1) sep(2) list(3..ph-4) sep(ph-3) footer(ph-2) border(ph-1)
         ih = ph - 6
+        last_click_idx = -1
+        last_click_time = 0.0
         while True:
             win.erase()
             draw_border(win, "Select Video File")
@@ -253,7 +255,11 @@ class FilePicker:
                         idx = self.offset + (ry - 3)
                         if 0 <= idx < len(self.entries):
                             self.cursor = idx
-                            if dclick:
+                            now = time.monotonic()
+                            is_dclick = bool(dclick) or (idx == last_click_idx and now - last_click_time < 0.5)
+                            if is_dclick:
+                                last_click_idx = -1
+                                last_click_time = 0.0
                                 entry = self.entries[self.cursor]
                                 full = os.path.join(self.directory, entry) if entry != ".." else os.path.dirname(self.directory)
                                 if entry == ".." or os.path.isdir(full):
@@ -262,6 +268,9 @@ class FilePicker:
                                 else:
                                     curses.curs_set(0)
                                     return full
+                            else:
+                                last_click_idx = idx
+                                last_click_time = now
                 except curses.error:
                     pass
             elif focus == "input":
@@ -398,8 +407,7 @@ def pick_language(stdscr, current):
                 _, mx, my, _, bstate = curses.getmouse()
                 scroll_up   = bstate & curses.BUTTON4_PRESSED
                 scroll_down = bstate & getattr(curses, "BUTTON5_PRESSED", 2097152)
-                click       = bstate & (curses.BUTTON1_CLICKED | curses.BUTTON1_PRESSED)
-                dclick      = bstate & curses.BUTTON1_DOUBLE_CLICKED
+                click       = bstate & (curses.BUTTON1_CLICKED | curses.BUTTON1_PRESSED | curses.BUTTON1_DOUBLE_CLICKED)
                 ry = my - py
                 if click and (my < py or my >= py + ph or mx < px or mx >= px + pw):
                     return current
@@ -411,12 +419,10 @@ def pick_language(stdscr, current):
                     cursor += 1
                     if cursor >= offset + ih:
                         offset = cursor - ih + 1
-                elif (click or dclick) and 1 <= ry <= ih:
+                elif click and 1 <= ry <= ih:
                     idx = offset + (ry - 1)
                     if 0 <= idx < len(options):
-                        cursor = idx
-                        if dclick:
-                            return options[cursor]
+                        return options[idx]
             except curses.error:
                 pass
 
@@ -762,7 +768,7 @@ def main(stdscr):
             max_scroll = max(0, len(log_lines) - avail_h)
             log_scroll = min(log_scroll + 1, max_scroll)
             draw()
-        elif key == curses.KEY_DOWN and log_scroll > 0 and (running or ui_focus != 7):
+        elif key == curses.KEY_DOWN and log_scroll > 0:
             log_scroll = max(0, log_scroll - 1)
             draw()
         elif key == curses.KEY_MOUSE:
