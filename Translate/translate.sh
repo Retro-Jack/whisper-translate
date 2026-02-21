@@ -63,9 +63,9 @@ import threading
 import queue
 
 VENV = sys.argv[1]
-MODELS = ["tiny", "small", "medium", "large", "turbo"]
+MODELS = ["tiny", "small", "medium", "turbo", "large"]
 MODELS_DISPLAY = [m.capitalize() for m in MODELS]
-DEFAULT_MODEL = 4  # turbo
+DEFAULT_MODEL = 3  # turbo
 VIDEO_EXTS = {".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm", ".m4v", ".ts", ".mpg", ".mpeg"}
 TIME_REGEX = re.compile(r"time=(\d+):(\d+):([\d.]+)")
 LANGUAGES = [
