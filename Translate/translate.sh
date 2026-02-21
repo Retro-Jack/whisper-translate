@@ -34,7 +34,6 @@ if [ ! -f "${VENV}/bin/whisper" ]; then
   echo "Done."
 fi
 
-
 # All temp files live under /tmp/whisper_translate/; bash trap removes the whole dir on exit
 mkdir -p /tmp/whisper_translate
 TMPPY="$(mktemp /tmp/whisper_translate/tui_XXXXXX.py)"
@@ -440,7 +439,7 @@ def main(stdscr):
     selected_file = None
     model_idx = DEFAULT_MODEL
     lang = None           # None = autodetect; string = ISO language name passed to whisper
-    ui_focus = 0          # 0=file 1-5=model 6=lang-auto 7=lang-manual
+    ui_focus = 0          # 0=file 1-4=model 5=lang-auto 6=lang-manual
     log_lines = []
     running = False
     log_scroll = 0        # lines scrolled up from the tail; 0 means follow live output
@@ -471,7 +470,7 @@ def main(stdscr):
             pass
 
         # Brain row (row 4) — ◉ tracks ui_focus when focused, otherwise tracks model_idx
-        _model_idle = running or ui_focus not in range(1, 6)
+        _model_idle = running or ui_focus not in range(1, 5)
         try:
             stdscr.addstr(4, 2, "Brain: ", curses.color_pair(3))
         except curses.error:
@@ -487,9 +486,9 @@ def main(stdscr):
             x += len(label)
 
         # Lang row (row 6) — same ◉ logic as Brain
-        _lang_idle = running or ui_focus not in (6, 7)
-        lang_dot_auto = "◉" if (not running and ui_focus == 6) or (_lang_idle and lang is None) else "○"
-        lang_dot_man  = "◉" if (not running and ui_focus == 7) or (_lang_idle and lang is not None) else "○"
+        _lang_idle = running or ui_focus not in (5, 6)
+        lang_dot_auto = "◉" if (not running and ui_focus == 5) or (_lang_idle and lang is None) else "○"
+        lang_dot_man  = "◉" if (not running and ui_focus == 6) or (_lang_idle and bool(lang)) else "○"
         lang_name = f"[ {lang} ]" if lang else "[ Select ]"
         try:
             stdscr.addstr(6, 2, "Lang:  ", curses.color_pair(3))
@@ -587,6 +586,11 @@ def main(stdscr):
         nonlocal running, log_scroll
         if not selected_file or running:
             return
+        if lang is not None and not lang:
+            log_lines.append("Please select a language, or switch to Autodetect.")
+            log_scroll = 0
+            draw()
+            return
         cancel_event.clear()
         running = True
         log_lines.clear()
@@ -644,7 +648,7 @@ def main(stdscr):
                      "--task", "translate",
                      "--output_format", "srt",
                      "--output_dir", out_dir]
-                if lang:
+                if lang and lang in LANGUAGE_CODES:
                     whisper_cmd += ["--language", LANGUAGE_CODES[lang]]
                 proc = subprocess.Popen(
                     whisper_cmd,
@@ -659,6 +663,7 @@ def main(stdscr):
                 proc.wait()
                 current_proc[0] = None
                 if proc.returncode == 0:
+                    log_q.put(("log", ""))
                     log_q.put(("log", "Done! SRT saved alongside source file."))
                 elif not cancel_event.is_set():
                     log_q.put(("log", "ERROR: whisper exited with an error."))
@@ -720,7 +725,7 @@ def main(stdscr):
         elif key in (ord("q"), ord("Q"), 27):
             do_cancel()
         elif key in (ord("\t"), curses.KEY_BTAB) and not running:
-            ui_focus = (ui_focus + (1 if key == ord("\t") else -1)) % 8
+            ui_focus = (ui_focus + (1 if key == ord("\t") else -1)) % 7
             draw()
         elif key in (ord(" "), curses.KEY_ENTER, 10, 13) and not running and ui_focus == 0:
             start = os.path.dirname(selected_file) if selected_file else os.path.expanduser("~")
@@ -731,23 +736,23 @@ def main(stdscr):
                 selected_file = result
             draw()
         elif key == ord(" ") and not running:
-            if 1 <= ui_focus <= 5:
+            if 1 <= ui_focus <= 4:
                 model_idx = ui_focus - 1
                 draw()
-            elif ui_focus == 6:
+            elif ui_focus == 5:
                 lang = None
                 draw()
-            elif ui_focus == 7:
+            elif ui_focus == 6:
                 draw(inactive=True)
                 lang = pick_language(stdscr, lang)
                 draw()
-        elif key == curses.KEY_LEFT and not running and 1 <= ui_focus <= 5:
+        elif key == curses.KEY_LEFT and not running and 1 <= ui_focus <= 4:
             model_idx = (model_idx - 1) % len(MODELS)
             draw()
-        elif key == curses.KEY_RIGHT and not running and 1 <= ui_focus <= 5:
+        elif key == curses.KEY_RIGHT and not running and 1 <= ui_focus <= 4:
             model_idx = (model_idx + 1) % len(MODELS)
             draw()
-        elif key == curses.KEY_DOWN and not running and ui_focus == 7:
+        elif key == curses.KEY_DOWN and not running and ui_focus == 6:
             draw(inactive=True)
             lang = pick_language(stdscr, lang)
             draw()
@@ -803,10 +808,10 @@ def main(stdscr):
                     elif my == 6:
                         if 9 <= mx <= 20:
                             lang = None
-                            ui_focus = 6
+                            ui_focus = 5
                             draw()
                         elif 23 <= mx <= 24 + len(f"[ {lang} ]" if lang else "[ Select ]"):
-                            ui_focus = 7
+                            ui_focus = 6
                             draw(inactive=True)
                             lang = pick_language(stdscr, lang)
                             draw()
