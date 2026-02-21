@@ -60,8 +60,8 @@ The SRT file is saved in the same directory as the source video.
 | Tiny | ~1 GB | Fastest | Basic |
 | Small | ~2 GB | Fast | Good |
 | Medium | ~5 GB | Moderate | Better |
-| Large | ~10 GB | Slow | Best |
 | **Turbo** *(default)* | ~6 GB | Fast | Near-large |
+| Large | ~10 GB | Slow | Best |
 
 Turbo is the recommended default — it offers near-large quality at roughly 8× the speed.
 
