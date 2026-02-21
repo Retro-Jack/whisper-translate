@@ -2,7 +2,7 @@
 
 A terminal UI for transcribing and translating video files into SRT subtitles using [OpenAI Whisper](https://github.com/openai/whisper).
 
-![screenshot placeholder](https://placehold.co/800x400?text=Whisper+Translate+TUI)
+![Whisper Translate TUI](https://i.imgur.com/tJwvu5f.png)
 
 ---
 
