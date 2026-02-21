@@ -488,7 +488,7 @@ def main(stdscr):
         _lang_idle = running or ui_focus not in (6, 7)
         lang_dot_auto = "◉" if (not running and ui_focus == 6) or (_lang_idle and lang is None) else "○"
         lang_dot_man  = "◉" if (not running and ui_focus == 7) or (_lang_idle and lang is not None) else "○"
-        lang_name = lang if lang else "(Select)"
+        lang_name = f"[ {lang} ]" if lang else "[ Select ]"
         try:
             stdscr.addstr(6, 2, "Lang:  ", curses.color_pair(3))
             stdscr.addstr(6, 9,  f"{lang_dot_auto} Autodetect  ", curses.color_pair(5))
@@ -809,7 +809,7 @@ def main(stdscr):
                             lang = None
                             ui_focus = 6
                             draw()
-                        elif 23 <= mx <= 24 + len(lang if lang else "(Select)"):  # Manual: ○ <name>
+                        elif 23 <= mx <= 24 + len(f"[ {lang} ]" if lang else "[ Select ]"):  # Manual: ○ <name>
                             ui_focus = 7
                             draw(inactive=True)
                             lang = pick_language(stdscr, lang)
