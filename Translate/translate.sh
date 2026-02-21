@@ -159,16 +159,15 @@ class FilePicker:
         input_text = ""
         input_cur = 0
         input_error = ""
+        input_row = 1
+        input_label = "Path: "
+        iw = pw - 4
+        ih = ph - 6   # list rows 3..(ph-4); Layout: border(0), input(1), sep(2), list(3..ph-4), sep(ph-3), footer(ph-2), border(ph-1)
         while True:
             win.erase()
             draw_border(win, "Select Video File")
-            iw = pw - 4
-            # Layout: border(0), input(1), sep(2), list(3..ph-4), sep(ph-3), footer(ph-2), border(ph-1)
-            ih = ph - 6   # list rows 3..(ph-4)
 
             # Path input row
-            input_row = 1
-            input_label = "Path: "
             field_w = max(1, iw - len(input_label) - 1)
             vis_start = max(0, input_cur - field_w + 1) if input_text else 0
             vis_text = input_text[vis_start:vis_start + field_w]
@@ -375,7 +374,7 @@ class FilePicker:
 
 
 def pick_language(stdscr, current):
-    """Scrollable language picker. Returns new lang string, None for autodetect, or current on cancel."""
+    """Scrollable language picker. Returns selected language string, or current on cancel."""
     options = LANGUAGES
     cursor = options.index(current) if current in options else 0
     offset = 0
@@ -439,7 +438,6 @@ def pick_language(stdscr, current):
                             return options[cursor]
             except curses.error:
                 pass
-
 
 
 def main(stdscr):
@@ -511,7 +509,7 @@ def main(stdscr):
                 pass
             x += len(label)
 
-        # Language row — ◉/○ follows ui_focus when on lang stops, otherwise lang value
+        # Language row — ◉/○ follows ui_focus when on lang row, otherwise lang value
         _lang_idle = running or ui_focus not in (6, 7)
         lang_dot_auto = "◉" if (not running and ui_focus == 6) or (_lang_idle and lang is None) else "○"
         lang_dot_man  = "◉" if (not running and ui_focus == 7) or (_lang_idle and lang is not None) else "○"
@@ -531,8 +529,8 @@ def main(stdscr):
             pct = int(progress * 100)
             bar = "█" * filled + "░" * (bar_w - filled)
             try:
-                stdscr.addstr(8, 2, f"ffmpeg ", curses.color_pair(3))
-                stdscr.addstr(8, 9, f"[", curses.color_pair(3))
+                stdscr.addstr(8, 2, "ffmpeg ", curses.color_pair(3))
+                stdscr.addstr(8, 9, "[", curses.color_pair(3))
                 stdscr.addstr(8, 10, bar, curses.color_pair(8))
                 stdscr.addstr(8, 10 + bar_w, f"] {pct:3d}%", curses.color_pair(3))
             except curses.error:
@@ -649,7 +647,6 @@ def main(stdscr):
                 current_proc[0] = None
 
                 if proc.returncode != 0:
-                    log_q.put(("done",))
                     if not cancel_event.is_set():
                         log_q.put(("log", "ERROR: ffmpeg failed."))
                     return
