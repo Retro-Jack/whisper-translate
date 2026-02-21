@@ -14,7 +14,7 @@ Foreign-language video content is everywhere — films, lectures, interviews —
 
 - **Interactive curses TUI** — keyboard and mouse driven, no flags to remember
 - **File picker** — browse your filesystem, filtered to video files only
-- **5 model sizes** — Tiny, Small, Medium, Turbo (default), Large
+- **4 model sizes** — Tiny, Small, Medium, Large (default)
 - **Language control** — autodetect or pick from 100+ languages
 - **ffmpeg progress bar** — real-time conversion progress with percentage
 - **Live whisper output** — scrollable log of whisper's transcription output
@@ -60,10 +60,9 @@ The SRT file is saved in the same directory as the source video.
 | Tiny | ~1 GB | Fastest | Basic |
 | Small | ~2 GB | Fast | Good |
 | Medium | ~5 GB | Moderate | Better |
-| **Turbo** *(default)* | ~6 GB | Fast | Near-large |
-| Large | ~10 GB | Slow | Best |
+| **Large** *(default)* | ~10 GB | Slow | Best |
 
-Turbo is the recommended default — it offers near-large quality at roughly 8× the speed.
+Large is the recommended default — it provides the best translation accuracy, which is essential for reliable subtitle output.
 
 ---
 
