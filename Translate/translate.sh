@@ -32,7 +32,7 @@ fi
 if [ ! -f "${VENV}/bin/whisper" ]; then
   echo "Setting up whisper environment (first run only)..."
   python3 -m venv "${VENV}"
-  "${VENV}/bin/pip" install --quiet openai-whisper
+  "${VENV}/bin/pip" install openai-whisper
   echo "Done."
 fi
 
