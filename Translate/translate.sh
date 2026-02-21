@@ -4,13 +4,11 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VENV="${SCRIPT_DIR}/whisper-env"
 
-# Check for python3
+# Abort if required tools are missing
 if ! command -v python3 &>/dev/null; then
   echo "Error: python3 not found. Please install Python 3 first."
   exit 1
 fi
-
-# Check for ffmpeg / ffprobe
 if ! command -v ffmpeg &>/dev/null; then
   echo "Error: ffmpeg not found. Please install ffmpeg first."
   exit 1
@@ -20,7 +18,7 @@ if ! command -v ffprobe &>/dev/null; then
   exit 1
 fi
 
-# Check for curses (standard library, but can be missing on minimal installs)
+# curses ships with Python but can be absent on minimal installs
 if ! python3 -c "import curses" &>/dev/null; then
   echo "Error: Python 'curses' module not available."
   echo "  Arch/CachyOS: sudo pacman -S python"
@@ -28,7 +26,7 @@ if ! python3 -c "import curses" &>/dev/null; then
   exit 1
 fi
 
-# Set up venv and install whisper if needed
+# First-run: create venv and install whisper
 if [ ! -f "${VENV}/bin/whisper" ]; then
   echo "Setting up whisper environment (first run only)..."
   python3 -m venv "${VENV}"
@@ -36,7 +34,7 @@ if [ ! -f "${VENV}/bin/whisper" ]; then
   echo "Done."
 fi
 
-# If a file argument was given, skip the TUI and run directly
+# Headless mode: translate.sh <file> [model]
 if [ -n "$1" ]; then
   INPUT="$1"
   MODEL="${2:-turbo}"
@@ -50,7 +48,7 @@ if [ -n "$1" ]; then
   exit 0
 fi
 
-# Launch the TUI — write to a temp file so stdin stays attached to the terminal
+# Write the TUI to a temp file so the terminal's stdin stays available to curses
 TMPPY="$(mktemp /tmp/translate_tui_XXXXXX.py)"
 trap 'rm -f "$TMPPY"' EXIT
 cat > "$TMPPY" <<'PYTHON_EOF'
@@ -65,9 +63,9 @@ import queue
 VENV = sys.argv[1]
 MODELS = ["tiny", "small", "medium", "turbo", "large"]
 MODELS_DISPLAY = [m.capitalize() for m in MODELS]
-DEFAULT_MODEL = 3  # turbo
+DEFAULT_MODEL = 3  # index of "turbo" in MODELS
 VIDEO_EXTS = {".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm", ".m4v", ".ts", ".mpg", ".mpeg"}
-TIME_REGEX = re.compile(r"time=(\d+):(\d+):([\d.]+)")
+TIME_REGEX = re.compile(r"time=(\d+):(\d+):([\d.]+)")  # matches ffmpeg progress output
 LANGUAGES = [
     "Afrikaans", "Albanian", "Amharic", "Arabic", "Armenian", "Assamese",
     "Azerbaijani", "Bashkir", "Basque", "Belarusian", "Bengali", "Bosnian",
@@ -155,26 +153,25 @@ class FilePicker:
         ph, pw = h - 4, w - 4
         win = curses.newwin(ph, pw, 2, 2)
         win.keypad(True)
-        focus = "input"  # "list" or "input" — start on path field
+        focus = "input"
         input_text = ""
         input_cur = 0
         input_error = ""
+        # These are fixed for the lifetime of the window
         input_row = 1
         input_label = "Path: "
         iw = pw - 4
-        ih = ph - 6   # list rows 3..(ph-4); Layout: border(0), input(1), sep(2), list(3..ph-4), sep(ph-3), footer(ph-2), border(ph-1)
+        # Row layout: border(0) input(1) sep(2) list(3..ph-4) sep(ph-3) footer(ph-2) border(ph-1)
+        ih = ph - 6
         while True:
             win.erase()
             draw_border(win, "Select Video File")
 
-            # Path input row
+            # Path input — scrolls horizontally when text exceeds field width
             field_w = max(1, iw - len(input_label) - 1)
             vis_start = max(0, input_cur - field_w + 1) if input_text else 0
             vis_text = input_text[vis_start:vis_start + field_w]
-            if focus == "input":
-                input_attr = curses.color_pair(2) | curses.A_BOLD
-            else:
-                input_attr = curses.color_pair(5)   # white — always visible
+            input_attr = curses.color_pair(2) | curses.A_BOLD if focus == "input" else curses.color_pair(5)
             try:
                 win.addstr(input_row, 2, input_label, curses.color_pair(3) | curses.A_BOLD)
                 win.addstr(input_row, 2 + len(input_label), vis_text.ljust(field_w), input_attr)
@@ -187,7 +184,7 @@ class FilePicker:
                 except curses.error:
                     pass
 
-            # Separator below input — directory label embedded in line
+            # Separator with current directory path embedded
             try:
                 dir_label = f" {self.directory} "
                 sep = (dir_label + "─" * iw)[:iw]
@@ -195,7 +192,7 @@ class FilePicker:
             except curses.error:
                 pass
 
-            # File list (starts at row 3)
+            # File list — directories prefixed with "/" and coloured blue
             for i in range(ih):
                 idx = self.offset + i
                 if idx >= len(self.entries):
@@ -213,23 +210,18 @@ class FilePicker:
                 except curses.error:
                     pass
 
-            # Separator above footer
             try:
                 win.addstr(ph - 3, 2, "─" * iw, curses.color_pair(3))
             except curses.error:
                 pass
 
-            # Footer
-            if focus == "input":
-                hint = " Enter:go  Esc:cancel "
-            else:
-                hint = " Enter:select  Tab:path  q:cancel "
+            hint = " Enter:go  Esc:cancel " if focus == "input" else " Enter:select  Tab:path  q:cancel "
             try:
                 win.addstr(ph - 2, 2, hint, curses.color_pair(5))
             except curses.error:
                 pass
 
-            # Hardware cursor — visible only when input focused
+            # Show hardware cursor only when typing in the path field
             if focus == "input":
                 cur_x = 2 + len(input_label) + (input_cur - vis_start)
                 try:
@@ -251,7 +243,7 @@ class FilePicker:
                     _, mx, my, _, bstate = curses.getmouse()
                     ry, rx = my - 2, mx - 2
                     scroll_up   = bstate & curses.BUTTON4_PRESSED
-                    scroll_down = bstate & getattr(curses, "BUTTON5_PRESSED", 2097152)
+                    scroll_down = bstate & getattr(curses, "BUTTON5_PRESSED", 2097152)  # 2097152 = fallback for builds that don't define BUTTON5_PRESSED
                     click       = bstate & (curses.BUTTON1_CLICKED | curses.BUTTON1_PRESSED)
                     dclick      = bstate & curses.BUTTON1_DOUBLE_CLICKED
                     if scroll_up and self.cursor > 0:
@@ -262,12 +254,12 @@ class FilePicker:
                         self.cursor += 1
                         if self.cursor >= self.offset + ih:
                             self.offset = self.cursor - ih + 1
-                    elif ry == 1 and click:   # input row
+                    elif ry == 1 and click:
                         focus = "input"
                         field_start = 2 + len(input_label)
                         if rx >= field_start:
                             input_cur = min(rx - field_start, len(input_text))
-                    elif 3 <= ry <= 2 + ih and (click or dclick):  # list
+                    elif 3 <= ry <= 2 + ih and (click or dclick):
                         focus = "list"
                         idx = self.offset + (ry - 3)
                         if 0 <= idx < len(self.entries):
@@ -284,7 +276,7 @@ class FilePicker:
                 except curses.error:
                     pass
             elif focus == "input":
-                if key == 27:  # Esc — close picker
+                if key == 27:
                     curses.curs_set(0)
                     return None
                 elif key in (curses.KEY_ENTER, 10, 13):
@@ -349,10 +341,10 @@ class FilePicker:
                 elif key == curses.KEY_END:
                     self.cursor = len(self.entries) - 1
                     self.offset = max(0, self.cursor - ih + 1)
-                elif key == curses.KEY_PPAGE:  # Page Up
+                elif key == curses.KEY_PPAGE:
                     self.cursor = max(0, self.cursor - ih)
                     self.offset = max(0, self.offset - ih)
-                elif key == curses.KEY_NPAGE:  # Page Down
+                elif key == curses.KEY_NPAGE:
                     self.cursor = min(len(self.entries) - 1, self.cursor + ih)
                     self.offset = min(max(0, len(self.entries) - ih), self.offset + ih)
                 elif key in (curses.KEY_ENTER, 10, 13):
@@ -445,55 +437,50 @@ def main(stdscr):
     curses.mousemask(curses.ALL_MOUSE_EVENTS | curses.REPORT_MOUSE_POSITION)
     curses.curs_set(0)
     curses.start_color()
-    curses.use_default_colors()
+    curses.use_default_colors()  # -1 background = terminal default (supports transparency)
 
-    # Color pairs — dark mode
-    curses.init_pair(1, curses.COLOR_MAGENTA, -1)   # title / accents
-    curses.init_pair(2, curses.COLOR_BLACK, curses.COLOR_MAGENTA)  # selected
-    curses.init_pair(3, curses.COLOR_BLUE, -1)       # borders / labels / directories
-    curses.init_pair(5, curses.COLOR_WHITE, -1)      # files
-    curses.init_pair(6, 8, -1)                       # dim hints (dark grey)
-    curses.init_pair(7, curses.COLOR_CYAN, -1)       # log output
-    curses.init_pair(8, curses.COLOR_GREEN, -1)      # progress bar fill
+    curses.init_pair(1, curses.COLOR_MAGENTA, -1)                    # title, focused button
+    curses.init_pair(2, curses.COLOR_BLACK, curses.COLOR_MAGENTA)    # selected/highlighted item
+    curses.init_pair(3, curses.COLOR_BLUE, -1)                       # labels, borders, directories
+    curses.init_pair(5, curses.COLOR_WHITE, -1)                      # normal interactive elements
+    curses.init_pair(6, 8, -1)                                       # greyed-out / inactive
+    curses.init_pair(7, curses.COLOR_CYAN, -1)                       # log output text
+    curses.init_pair(8, curses.COLOR_GREEN, -1)                      # progress bar fill
 
     selected_file = None
     model_idx = DEFAULT_MODEL
-    lang = None       # None = autodetect, string = specific language
-    ui_focus = 0      # 0=file button, 1-5=model options, 6=lang auto, 7=lang manual
+    lang = None           # None = autodetect; string = ISO language name passed to whisper
+    ui_focus = 0          # 0=file 1-5=model 6=lang-auto 7=lang-manual
     log_lines = []
     running = False
-    progress = None   # None = hidden, 0.0–1.0 when active
-    log_scroll = 0    # lines scrolled up from bottom; 0 = follow tail
-    log_q = queue.Queue()  # items: ("log", str) | ("progress", float) | ("done",) | ("cancelled",)
-    cancel_event = threading.Event()  # set to request job cancellation
-    current_proc = [None]             # currently running subprocess (for termination)
+    progress = None       # None hides the bar; 0.0–1.0 shows it during ffmpeg conversion
+    log_scroll = 0        # lines scrolled up from the tail; 0 means follow live output
+    log_q = queue.Queue() # worker → UI: ("log", str) | ("progress", float) | ("done",) | ("cancelled",)
+    cancel_event = threading.Event()
+    current_proc = [None] # mutable wrapper so the worker thread can expose its subprocess to do_cancel
     quit_requested = [False]
 
     def draw(status="", inactive=False):
         stdscr.erase()
         h, w = stdscr.getmaxyx()
 
-        # Title bar
-        title = " Whisper Translate "
         try:
+            title = " Whisper Translate "
             stdscr.addstr(0, (w - len(title)) // 2, title, curses.color_pair(1) | curses.A_BOLD)
         except curses.error:
             pass
 
-        # File row — "File:" is a static label; the button is the tab stop
+        # File row (row 2)
         file_inner = os.path.basename(selected_file) if selected_file else "Select"
         file_btn = f"[ {file_inner} ]"
-        if not running and ui_focus == 0:
-            file_btn_attr = curses.color_pair(1) | curses.A_BOLD
-        else:
-            file_btn_attr = curses.color_pair(5)
+        file_btn_attr = curses.color_pair(1) | curses.A_BOLD if (not running and ui_focus == 0) else curses.color_pair(5)
         try:
             stdscr.addstr(2, 2, "File:  ", curses.color_pair(3))
             stdscr.addstr(2, 9, file_btn[: w - 11], file_btn_attr)
         except curses.error:
             pass
 
-        # Brain radio buttons — ◉ follows ui_focus when on model row, otherwise tracks model_idx
+        # Brain row (row 4) — ◉ tracks ui_focus when focused, otherwise tracks model_idx
         _model_idle = running or ui_focus not in range(1, 6)
         try:
             stdscr.addstr(4, 2, "Brain: ", curses.color_pair(3))
@@ -509,7 +496,7 @@ def main(stdscr):
                 pass
             x += len(label)
 
-        # Language row — ◉/○ follows ui_focus when on lang row, otherwise lang value
+        # Lang row (row 6) — same ◉ logic as Brain
         _lang_idle = running or ui_focus not in (6, 7)
         lang_dot_auto = "◉" if (not running and ui_focus == 6) or (_lang_idle and lang is None) else "○"
         lang_dot_man  = "◉" if (not running and ui_focus == 7) or (_lang_idle and lang is not None) else "○"
@@ -522,7 +509,7 @@ def main(stdscr):
         except curses.error:
             pass
 
-        # Progress bar (row 8, only while running)
+        # ffmpeg progress bar (row 8) — only visible during WAV conversion
         if progress is not None:
             bar_w = w - 16
             filled = int(bar_w * progress)
@@ -536,18 +523,16 @@ def main(stdscr):
             except curses.error:
                 pass
 
-        # Log box
+        # Log box — starts at row 9 when progress bar is showing, row 8 otherwise
         log_top = 9 if progress is not None else 8
-        log_h = h - log_top - 3  # content rows (excludes top and bottom border rows)
+        log_h = h - log_top - 3
 
-        # Buttons: rows 5-7, right-aligned
-        # Cancel (10 chars, cols w-12..w-3) always shown; Run (7 chars, cols w-20..w-14) greyed when not ready
+        # Buttons (rows 5-7, right-aligned): Cancel always active; Run greyed until a file is selected
         cancel_col = w - 12
-        cancel_attr = curses.color_pair(5)
         try:
-            stdscr.addstr(5, cancel_col, "┌────────┐", cancel_attr)
-            stdscr.addstr(6, cancel_col, "│ Cancel │", cancel_attr)
-            stdscr.addstr(7, cancel_col, "└────────┘", cancel_attr)
+            stdscr.addstr(5, cancel_col, "┌────────┐", curses.color_pair(5))
+            stdscr.addstr(6, cancel_col, "│ Cancel │", curses.color_pair(5))
+            stdscr.addstr(7, cancel_col, "└────────┘", curses.color_pair(5))
         except curses.error:
             pass
         run_col = w - 20
@@ -558,8 +543,9 @@ def main(stdscr):
             stdscr.addstr(7, run_col, "└─────┘", run_attr)
         except curses.error:
             pass
-        log_w = w - 4             # total box width including borders
-        inner_w = log_w - 2       # text width inside borders
+
+        log_w = w - 4
+        inner_w = log_w - 2
         if log_h > 0:
             scroll_hint = f" ↑{log_scroll} " if log_scroll > 0 else ""
             title = f"Output{scroll_hint}"
@@ -588,7 +574,7 @@ def main(stdscr):
                     except curses.error:
                         pass
 
-        # Footer
+        # Footer — dimmed when a sub-window is open (inactive=True)
         if status:
             footer = f" {status} "
         elif running:
@@ -617,7 +603,7 @@ def main(stdscr):
             base = os.path.splitext(selected_file)[0]
             wav = base + ".wav"
             try:
-                # Get total duration via ffprobe
+                # ffprobe gives us total duration so we can show a % progress bar
                 total_secs = None
                 try:
                     r = subprocess.run(
@@ -653,11 +639,11 @@ def main(stdscr):
 
                 log_q.put(("progress", 1.0))
                 log_q.put(("log", "ffmpeg: done."))
-                log_q.put(("done",))
+                log_q.put(("done",))  # hide progress bar before whisper output begins
                 log_q.put(("log", f"whisper: loading model '{MODELS_DISPLAY[model_idx]}' (may take a moment)…"))
 
                 env = os.environ.copy()
-                env["PYTHONUNBUFFERED"] = "1"
+                env["PYTHONUNBUFFERED"] = "1"  # ensure whisper output reaches us line-by-line
 
                 out_dir = os.path.dirname(os.path.abspath(selected_file))
                 whisper_cmd = [f"{VENV}/bin/whisper", wav,
@@ -684,6 +670,7 @@ def main(stdscr):
                 elif not cancel_event.is_set():
                     log_q.put(("log", "ERROR: whisper exited with an error."))
             finally:
+                # Always runs: clear the proc ref, signal completion, and remove the temp WAV
                 current_proc[0] = None
                 log_q.put(("done",))
                 if os.path.exists(wav):
@@ -709,7 +696,7 @@ def main(stdscr):
     draw()
 
     while True:
-        # Drain log queue
+        # Drain all pending messages from the worker thread before blocking on input
         updated = False
         while not log_q.empty():
             msg = log_q.get_nowait()
@@ -732,7 +719,7 @@ def main(stdscr):
         if quit_requested[0]:
             break
 
-        stdscr.timeout(100)
+        stdscr.timeout(100)  # wake every 100 ms to drain the queue even without keypresses
         key = stdscr.getch()
 
         if key == -1:
@@ -789,7 +776,6 @@ def main(stdscr):
                 scroll_up   = bstate & curses.BUTTON4_PRESSED
                 scroll_down = bstate & getattr(curses, "BUTTON5_PRESSED", 2097152)
                 click       = bstate & (curses.BUTTON1_CLICKED | curses.BUTTON1_PRESSED)
-                # Scroll wheel — works even while running
                 if scroll_up and log_lines:
                     log_h = h - log_top - 3
                     max_scroll = max(0, len(log_lines) - log_h)
@@ -799,13 +785,10 @@ def main(stdscr):
                     log_scroll = max(0, log_scroll - 1)
                     draw()
                 elif click and 5 <= my <= 7 and w - 12 <= mx <= w - 3:
-                    # Cancel button (rows 5-7, cols w-12..w-3) — works while running too
                     do_cancel()
                 elif click and not running:
-                    # Run button (rows 5-7, cols w-20..w-14)
                     if selected_file and 5 <= my <= 7 and w - 20 <= mx <= w - 14:
                         do_run()
-                    # File button row 2
                     elif my == 2:
                         file_inner = os.path.basename(selected_file) if selected_file else "Select"
                         if 9 <= mx <= min(13 + len(file_inner), w - 3):
@@ -816,7 +799,6 @@ def main(stdscr):
                             if result:
                                 selected_file = result
                             draw()
-                    # Model row 4
                     elif my == 4:
                         x = 9
                         for i, m in enumerate(MODELS_DISPLAY):
@@ -827,13 +809,12 @@ def main(stdscr):
                                 break
                             x += len(label)
                         draw()
-                    # Lang row 6
                     elif my == 6:
-                        if 9 <= mx <= 20:       # Autodetect: ○ Autodetect (cols 9-20)
+                        if 9 <= mx <= 20:
                             lang = None
                             ui_focus = 6
                             draw()
-                        elif 23 <= mx <= 24 + len(f"[ {lang} ]" if lang else "[ Select ]"):  # Manual: ○ <name>
+                        elif 23 <= mx <= 24 + len(f"[ {lang} ]" if lang else "[ Select ]"):
                             ui_focus = 7
                             draw(inactive=True)
                             lang = pick_language(stdscr, lang)
