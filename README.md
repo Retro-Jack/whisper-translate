@@ -16,7 +16,7 @@ Foreign-language video content is everywhere — films, lectures, interviews —
 - **File picker** — browse your filesystem, filtered to video files only
 - **4 model sizes** — Tiny, Small, Medium, Large (default)
 - **Language control** — autodetect or pick from 100+ languages
-- **ffmpeg progress bar** — real-time conversion progress with percentage
+- **ffmpeg progress bar** — real-time audio extraction progress with percentage
 - **Live whisper output** — scrollable log of whisper's transcription output
 - **Clean cancellation** — Cancel button or `q` terminates the job and cleans up temp files
 
@@ -69,7 +69,7 @@ Large is the recommended default — it provides the best translation accuracy, 
 ## How It Works
 
 1. `ffprobe` reads the video duration (used for the progress bar)
-2. `ffmpeg` converts the video to a 16 kHz mono WAV, stored in `/tmp/whisper_translate/`
+2. `ffmpeg` extracts audio to a 16 kHz mono WAV, stored in `/tmp/whisper_translate/`
 3. `whisper` transcribes and translates the WAV to English SRT
 4. The SRT is saved alongside the source video; all temp files are removed from `/tmp/whisper_translate/`
 

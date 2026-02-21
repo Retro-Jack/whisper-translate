@@ -643,7 +643,7 @@ def main(stdscr):
                 log_q.put(("done",))  # hide the progress bar before whisper output begins
                 log_q.put(("log", "Audio extraction complete."))
                 log_q.put(("log", ""))
-                log_q.put(("log", f"Loading model '{MODELS_DISPLAY[model_idx]}' (may take a moment)…"))
+                log_q.put(("log", f"Caffeinating the '{MODELS_DISPLAY[model_idx]}' brain (may take a moment)…"))
 
                 env = os.environ.copy()
                 env["PYTHONUNBUFFERED"] = "1"  # ensure whisper output reaches us line-by-line
@@ -664,7 +664,7 @@ def main(stdscr):
                 current_proc[0] = proc
                 for line in proc.stdout:
                     line = line.rstrip()
-                    if line:
+                    if line and "█" not in line:  # suppress tqdm progress bars
                         log_q.put(("log", line))
                 proc.wait()
                 current_proc[0] = None
