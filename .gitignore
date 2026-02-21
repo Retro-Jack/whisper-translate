@@ -1,6 +1,6 @@
 # Python virtual environments
 whisper-env/
-Translate/
+Translate/whisper-env/
 
 # Video files
 *.mp4
