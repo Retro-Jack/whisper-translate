@@ -51,11 +51,10 @@ import queue
 
 VENV = sys.argv[1]
 TMPWAV_DIR = sys.argv[2]  # temp dir for the WAV; bash trap removes it on exit
-MODELS = ["tiny", "small", "medium", "turbo", "large"]
+MODELS = ["tiny", "small", "medium", "large"]
 MODELS_DISPLAY = [m.capitalize() for m in MODELS]
-DEFAULT_MODEL = 3  # index of "turbo" in MODELS
+DEFAULT_MODEL = 3  # index of "large" in MODELS
 VIDEO_EXTS = {".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm", ".m4v", ".ts", ".mpg", ".mpeg"}
-TIME_REGEX = re.compile(r"time=(\d+):(\d+):([\d.]+)")  # matches ffmpeg progress output
 LANGUAGES = [
     "Afrikaans", "Albanian", "Amharic", "Arabic", "Armenian", "Assamese",
     "Azerbaijani", "Bashkir", "Basque", "Belarusian", "Bengali", "Bosnian",
@@ -101,6 +100,7 @@ LANGUAGE_CODES = {
     "Turkmen": "tk", "Ukrainian": "uk", "Urdu": "ur", "Uzbek": "uz",
     "Vietnamese": "vi", "Welsh": "cy", "Yiddish": "yi", "Yoruba": "yo",
 }
+TIME_REGEX = re.compile(r"time=(\d+):(\d+):([\d.]+)")  # parses ffmpeg stderr for elapsed time
 
 
 def draw_border(win, title=""):
@@ -443,8 +443,8 @@ def main(stdscr):
     ui_focus = 0          # 0=file 1-5=model 6=lang-auto 7=lang-manual
     log_lines = []
     running = False
-    progress = None       # None hides the bar; 0.0–1.0 shows it during ffmpeg conversion
     log_scroll = 0        # lines scrolled up from the tail; 0 means follow live output
+    progress = None       # 0.0–1.0 during ffmpeg extraction; None hides the bar
     log_q = queue.Queue() # worker → UI: ("log", str) | ("progress", float) | ("done",) | ("cancelled",)
     cancel_event = threading.Event()
     current_proc = [None] # mutable wrapper so the worker thread can expose its subprocess to do_cancel
@@ -499,22 +499,7 @@ def main(stdscr):
         except curses.error:
             pass
 
-        # ffmpeg progress bar (row 8) — only visible during WAV conversion
-        if progress is not None:
-            bar_w = w - 16
-            filled = int(bar_w * progress)
-            pct = int(progress * 100)
-            bar = "█" * filled + "░" * (bar_w - filled)
-            try:
-                stdscr.addstr(8, 2, "ffmpeg ", curses.color_pair(3))
-                stdscr.addstr(8, 9, "[", curses.color_pair(3))
-                stdscr.addstr(8, 10, bar, curses.color_pair(8))
-                stdscr.addstr(8, 10 + bar_w, f"] {pct:3d}%", curses.color_pair(3))
-            except curses.error:
-                pass
-
-        # Log box — starts at row 9 when progress bar is showing, row 8 otherwise
-        log_top = 9 if progress is not None else 8
+        log_top = 8
         log_h = h - log_top - 3
 
         # Buttons (rows 5-7, right-aligned): Cancel always active; Run greyed until a file is selected
@@ -547,10 +532,7 @@ def main(stdscr):
                 stdscr.addstr(log_top + log_h + 1, 2, bot_line[:log_w], curses.color_pair(3))
             except curses.error:
                 pass
-            total = len(log_lines)
-            end = total - log_scroll
-            start = max(0, end - log_h)
-            visible = log_lines[start:end]
+            # Side borders for every inner row
             for i in range(log_h):
                 row = log_top + 1 + i
                 try:
@@ -558,6 +540,29 @@ def main(stdscr):
                     stdscr.addstr(row, w - 3, "│", curses.color_pair(3))
                 except curses.error:
                     pass
+
+            # Progress block: label row then bar row, shown during ffmpeg audio extraction
+            bar_row = 0
+            if progress is not None:
+                bar_row = 2
+                bar_w = inner_w - 5   # leaves room for " NNN%"
+                filled = int(bar_w * progress)
+                pct = int(progress * 100)
+                bar = "█" * filled + "░" * (bar_w - filled)
+                try:
+                    stdscr.addstr(log_top + 1, 3, "Extracting audio…", curses.color_pair(7))
+                    stdscr.addstr(log_top + 2, 3, bar, curses.color_pair(8))
+                    stdscr.addstr(log_top + 2, 3 + bar_w, f" {pct:3d}%", curses.color_pair(3))
+                except curses.error:
+                    pass
+
+            avail_h = log_h - bar_row
+            total = len(log_lines)
+            end = total - log_scroll
+            start = max(0, end - avail_h)
+            visible = log_lines[start:end]
+            for i in range(avail_h):
+                row = log_top + 1 + bar_row + i
                 if i < len(visible):
                     try:
                         stdscr.addstr(row, 3, visible[i][:inner_w], curses.color_pair(7))
@@ -593,7 +598,7 @@ def main(stdscr):
             base = os.path.splitext(selected_file)[0]
             wav = os.path.join(TMPWAV_DIR, os.path.basename(base) + ".wav")
             try:
-                # ffprobe gives us total duration so we can show a % progress bar
+                # ffprobe reads total duration so we can show a % progress bar during audio extraction
                 total_secs = None
                 try:
                     r = subprocess.run(
@@ -605,19 +610,16 @@ def main(stdscr):
                 except Exception:
                     pass
 
-                log_q.put(("log", "ffmpeg: converting to WAV…"))
                 log_q.put(("progress", 0.0))
-
                 proc = subprocess.Popen(
                     ["ffmpeg", "-y", "-i", selected_file, "-vn", "-ac", "1", "-ar", "16000", wav],
-                    stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
-                    text=True
+                    stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True
                 )
                 current_proc[0] = proc
                 for line in proc.stderr:
                     m = TIME_REGEX.search(line)
                     if m and total_secs:
-                        elapsed = int(m.group(1)) * 3600 + int(m.group(2)) * 60 + float(m.group(3))
+                        elapsed = int(m.group(1))*3600 + int(m.group(2))*60 + float(m.group(3))
                         log_q.put(("progress", min(elapsed / total_secs, 1.0)))
                 proc.wait()
                 current_proc[0] = None
@@ -628,9 +630,10 @@ def main(stdscr):
                     return
 
                 log_q.put(("progress", 1.0))
-                log_q.put(("log", "ffmpeg: done."))
-                log_q.put(("done",))  # hide progress bar before whisper output begins
-                log_q.put(("log", f"whisper: loading model '{MODELS_DISPLAY[model_idx]}' (may take a moment)…"))
+                log_q.put(("done",))  # hide the progress bar before whisper output begins
+                log_q.put(("log", "Audio extraction complete."))
+                log_q.put(("log", ""))
+                log_q.put(("log", f"Loading model '{MODELS_DISPLAY[model_idx]}' (may take a moment)…"))
 
                 env = os.environ.copy()
                 env["PYTHONUNBUFFERED"] = "1"  # ensure whisper output reaches us line-by-line
@@ -750,9 +753,8 @@ def main(stdscr):
             draw()
         elif key == curses.KEY_UP and log_lines:
             h, w = stdscr.getmaxyx()
-            log_top = 9 if progress is not None else 8
-            log_h = h - log_top - 3
-            max_scroll = max(0, len(log_lines) - log_h)
+            avail_h = h - 8 - 3 - (2 if progress is not None else 0)
+            max_scroll = max(0, len(log_lines) - avail_h)
             log_scroll = min(log_scroll + 1, max_scroll)
             draw()
         elif key == curses.KEY_DOWN and log_scroll > 0 and (running or ui_focus != 7):
@@ -762,13 +764,12 @@ def main(stdscr):
             try:
                 _, mx, my, _, bstate = curses.getmouse()
                 h, w = stdscr.getmaxyx()
-                log_top = 9 if progress is not None else 8
                 scroll_up   = bstate & curses.BUTTON4_PRESSED
                 scroll_down = bstate & getattr(curses, "BUTTON5_PRESSED", 2097152)
                 click       = bstate & (curses.BUTTON1_CLICKED | curses.BUTTON1_PRESSED)
                 if scroll_up and log_lines:
-                    log_h = h - log_top - 3
-                    max_scroll = max(0, len(log_lines) - log_h)
+                    avail_h = h - 8 - 3 - (2 if progress is not None else 0)
+                    max_scroll = max(0, len(log_lines) - avail_h)
                     log_scroll = min(log_scroll + 1, max_scroll)
                     draw()
                 elif scroll_down and log_scroll > 0:
