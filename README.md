@@ -19,7 +19,6 @@ Foreign-language video content is everywhere — films, lectures, interviews —
 - **ffmpeg progress bar** — real-time conversion progress with percentage
 - **Live whisper output** — scrollable log of whisper's transcription output
 - **Clean cancellation** — Cancel button or `q` terminates the job and cleans up temp files
-- **Headless mode** — pass a file path as an argument to skip the TUI entirely
 
 ---
 
@@ -36,8 +35,6 @@ The first run automatically creates a Python virtual environment and installs `o
 
 ## Usage
 
-### Interactive TUI
-
 ```bash
 ./translate.sh
 ```
@@ -53,18 +50,6 @@ Navigate with **Tab** / **arrow keys** / **mouse**:
 | **Cancel / q** | Cancel a running job, or quit when idle |
 
 The SRT file is saved in the same directory as the source video.
-
-### Headless mode
-
-```bash
-./translate.sh /path/to/video.mp4 [model]
-```
-
-`model` defaults to `turbo`. Example:
-
-```bash
-./translate.sh movie.mkv medium
-```
 
 ---
 

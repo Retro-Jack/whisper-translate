@@ -34,19 +34,6 @@ if [ ! -f "${VENV}/bin/whisper" ]; then
   echo "Done."
 fi
 
-# Headless mode: translate.sh <file> [model]
-if [ -n "$1" ]; then
-  INPUT="$1"
-  MODEL="${2:-turbo}"
-  BASE="${INPUT%.*}"
-  trap 'rm -f "${BASE}.wav"' EXIT
-  ffmpeg -i "$INPUT" -vn -ac 1 -ar 16000 "${BASE}.wav"
-  "${VENV}/bin/whisper" "${BASE}.wav" \
-    --model "$MODEL" \
-    --task translate \
-    --output_format srt
-  exit 0
-fi
 
 # Write the TUI to a temp file so the terminal's stdin stays available to curses
 TMPPY="$(mktemp /tmp/translate_tui_XXXXXX.py)"
