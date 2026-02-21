@@ -349,7 +349,7 @@ class FilePicker:
 
 def pick_language(stdscr, current):
     """Scrollable language picker. Returns new lang string, None for autodetect, or current on cancel."""
-    options = ["Autodetect"] + LANGUAGES
+    options = LANGUAGES
     cursor = options.index(current) if current in options else 0
     offset = 0
     h, w = stdscr.getmaxyx()
@@ -383,7 +383,7 @@ def pick_language(stdscr, current):
             if cursor >= offset + ih:
                 offset = cursor - ih + 1
         elif key in (curses.KEY_ENTER, 10, 13):
-            return None if cursor == 0 else options[cursor]
+            return options[cursor]
         elif key == 27:
             return current
         elif key == curses.KEY_MOUSE:
@@ -409,7 +409,7 @@ def pick_language(stdscr, current):
                     if 0 <= idx < len(options):
                         cursor = idx
                         if dclick:
-                            return None if cursor == 0 else options[cursor]
+                            return options[cursor]
             except curses.error:
                 pass
 
