@@ -36,8 +36,10 @@ fi
 
 
 # Write the TUI to a temp file so the terminal's stdin stays available to curses
+# TMPWAV_DIR holds the WAV during conversion; bash trap guarantees cleanup even on hard kill
 TMPPY="$(mktemp /tmp/translate_tui_XXXXXX.py)"
-trap 'rm -f "$TMPPY"' EXIT
+TMPWAV_DIR="$(mktemp -d /tmp/translate_wav_XXXXXX)"
+trap 'rm -f "$TMPPY"; rm -rf "$TMPWAV_DIR"' EXIT
 cat > "$TMPPY" <<'PYTHON_EOF'
 import curses
 import os
@@ -48,6 +50,7 @@ import threading
 import queue
 
 VENV = sys.argv[1]
+TMPWAV_DIR = sys.argv[2]  # temp dir for the WAV; bash trap removes it on exit
 MODELS = ["tiny", "small", "medium", "turbo", "large"]
 MODELS_DISPLAY = [m.capitalize() for m in MODELS]
 DEFAULT_MODEL = 3  # index of "turbo" in MODELS
@@ -588,7 +591,7 @@ def main(stdscr):
         def run_job():
             nonlocal running
             base = os.path.splitext(selected_file)[0]
-            wav = base + ".wav"
+            wav = os.path.join(TMPWAV_DIR, os.path.basename(base) + ".wav")
             try:
                 # ffprobe gives us total duration so we can show a % progress bar
                 total_secs = None
@@ -814,4 +817,4 @@ except KeyboardInterrupt:
     pass
 PYTHON_EOF
 
-"${VENV}/bin/python3" "$TMPPY" "${VENV}"
+"${VENV}/bin/python3" "$TMPPY" "${VENV}" "${TMPWAV_DIR}"
