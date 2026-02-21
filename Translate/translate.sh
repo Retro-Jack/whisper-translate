@@ -35,11 +35,11 @@ if [ ! -f "${VENV}/bin/whisper" ]; then
 fi
 
 
-# Write the TUI to a temp file so the terminal's stdin stays available to curses
-# TMPWAV_DIR holds the WAV during conversion; bash trap guarantees cleanup even on hard kill
-TMPPY="$(mktemp /tmp/translate_tui_XXXXXX.py)"
-TMPWAV_DIR="$(mktemp -d /tmp/translate_wav_XXXXXX)"
-trap 'rm -f "$TMPPY"; rm -rf "$TMPWAV_DIR"' EXIT
+# All temp files live under /tmp/whisper_translate/; bash trap removes the whole dir on exit
+mkdir -p /tmp/whisper_translate
+TMPPY="$(mktemp /tmp/whisper_translate/tui_XXXXXX.py)"
+TMPWAV_DIR="$(mktemp -d /tmp/whisper_translate/wav_XXXXXX)"
+trap 'rm -rf /tmp/whisper_translate' EXIT
 cat > "$TMPPY" <<'PYTHON_EOF'
 import curses
 import os
