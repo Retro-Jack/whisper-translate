@@ -4,26 +4,50 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VENV="${SCRIPT_DIR}/whisper-env"
 
-# Abort if required tools are missing
+# Detect package manager and define install helper
+_install_pkg() {
+  local pkg="$1"
+  echo "Installing missing dependency: $pkg"
+  if command -v pacman &>/dev/null; then
+    sudo pacman -S --noconfirm "$pkg"
+  elif command -v apt-get &>/dev/null; then
+    sudo apt-get install -y "$pkg"
+  elif command -v dnf &>/dev/null; then
+    sudo dnf install -y "$pkg"
+  elif command -v zypper &>/dev/null; then
+    sudo zypper install -y "$pkg"
+  else
+    echo "Error: cannot install '$pkg' — no supported package manager found."
+    echo "Please install it manually and re-run."
+    exit 1
+  fi
+}
+
+# Auto-install system dependencies if missing
 if ! command -v python3 &>/dev/null; then
-  echo "Error: python3 not found. Please install Python 3 first."
-  exit 1
+  _install_pkg python
+  if ! command -v python3 &>/dev/null; then
+    echo "Error: python3 still not found after install attempt. Please install it manually."
+    exit 1
+  fi
 fi
-if ! command -v ffmpeg &>/dev/null; then
-  echo "Error: ffmpeg not found. Please install ffmpeg first."
-  exit 1
-fi
-if ! command -v ffprobe &>/dev/null; then
-  echo "Error: ffprobe not found. Please install ffmpeg (includes ffprobe)."
-  exit 1
+
+if ! command -v ffmpeg &>/dev/null || ! command -v ffprobe &>/dev/null; then
+  _install_pkg ffmpeg
 fi
 
 # curses ships with Python but can be absent on minimal installs
 if ! python3 -c "import curses" &>/dev/null; then
-  echo "Error: Python 'curses' module not available."
-  echo "  Arch/CachyOS: sudo pacman -S python"
-  echo "  Ubuntu/Debian: sudo apt install python3-curses"
-  exit 1
+  # On Debian/Ubuntu it's a separate package; on Arch it's bundled with python
+  if command -v apt-get &>/dev/null; then
+    _install_pkg python3-curses
+  else
+    _install_pkg python
+  fi
+  if ! python3 -c "import curses" &>/dev/null; then
+    echo "Error: Python 'curses' module still not available after install attempt."
+    exit 1
+  fi
 fi
 
 # First-run: create venv and install whisper
