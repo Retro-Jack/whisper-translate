@@ -24,17 +24,18 @@ Foreign-language video content is everywhere — films, lectures, interviews —
 
 ## Requirements
 
-**None — all dependencies are installed automatically on first run.**
+Everything is installed automatically — just run the script.
 
-The script detects your package manager (`pacman`, `apt-get`, `dnf`, or `zypper`) and installs anything missing via `sudo`:
+**On every first run**, the script checks for missing dependencies and installs them if needed:
 
-| Dependency | What it's used for |
-|---|---|
-| Python 3 | Runs the TUI and Whisper |
-| ffmpeg + ffprobe | Audio extraction and duration probing |
-| openai-whisper | Transcription and translation (installed into a local venv) |
+1. **System packages** — installed via `sudo` using your package manager (`pacman`, `apt-get`, `dnf`, or `zypper`):
+   - `python3` — required to run the TUI
+   - `ffmpeg` — provides both `ffmpeg` (audio extraction) and `ffprobe` (duration probing)
 
-The Python virtual environment is created at `./whisper-env` on first run and reused thereafter.
+2. **Python packages** — installed into a local virtual environment at `./whisper-env/`:
+   - `openai-whisper` — the transcription and translation engine
+
+The venv is created once and reused on all subsequent runs. No internet connection is needed after the first run (aside from Whisper downloading its model weights on first use of each model size).
 
 ---
 
