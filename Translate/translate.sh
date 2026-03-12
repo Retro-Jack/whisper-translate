@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Version 0.9.0
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -557,7 +558,9 @@ def main(stdscr):
             top_line = "┌" + title + "─" * dash_fill + "┐"
             bot_line = "└" + "─" * inner_w + "┘"
             try:
-                stdscr.addstr(log_top, 2, top_line[:log_w], curses.color_pair(3) | curses.A_BOLD)
+                stdscr.addstr(log_top, 2, top_line[:log_w], curses.color_pair(3))
+                if log_w > 1:
+                    stdscr.addstr(log_top, 3, title[:max(0, log_w - 1)], curses.color_pair(3) | curses.A_BOLD)
                 stdscr.addstr(log_top + log_h + 1, 2, bot_line[:log_w], curses.color_pair(3))
             except curses.error:
                 pass
