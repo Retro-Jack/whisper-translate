@@ -1,6 +1,7 @@
 # Whisper Translate
 
 [![Latest Release](https://img.shields.io/github/v/release/Retro-Jack/whisper-translate)](https://github.com/Retro-Jack/whisper-translate/releases/latest)
+[![Wiki](https://img.shields.io/badge/docs-wiki-blue)](https://github.com/Retro-Jack/whisper-translate/wiki)
 
 A terminal UI for transcribing and translating video files into SRT subtitles using [OpenAI Whisper](https://github.com/openai/whisper).
 
